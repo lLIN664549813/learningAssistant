@@ -1,0 +1,153 @@
+/*
+ * @Description: '首页输入样式（全学科入口）'
+ * @Version: 1.0
+ * @Autor:'zhanglin'
+ * @Date: 2026-02-26 11:46:00
+ * @LastEditors: 'zhanglin'
+ * @LastEditTime: 2026-02-26 13:41:34
+ */
+
+page {
+  --bg-color: #f4f7fb;
+  --card-color: #ffffff;
+  --text-primary: #1f2329;
+  --text-secondary: #667085;
+  --border-color: #d9e2f0;
+  --brand-color: #1f6feb;
+  --brand-color-dark: #1857bb;
+  --radius: 20rpx;
+  background: var(--bg-color);
+  min-height: 100vh;
+  font-family: 'Inter', 'Roboto', 'PingFang SC', sans-serif;
+}
+
+.page {
+  padding: 28rpx;
+}
+
+.panel {
+  background: var(--card-color);
+  border-radius: var(--radius);
+  padding: 28rpx;
+  box-shadow: 0 10rpx 28rpx rgba(22, 34, 64, 0.08);
+}
+
+.title {
+  color: var(--text-primary);
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 56rpx;
+}
+
+.subtitle {
+  margin-top: 12rpx;
+  color: var(--text-secondary);
+  font-size: 26rpx;
+  line-height: 40rpx;
+}
+
+.section-title {
+  margin-top: 30rpx;
+  margin-bottom: 14rpx;
+  color: var(--text-primary);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.subject-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 2rpx solid var(--border-color);
+  border-radius: 14rpx;
+  padding: 16rpx 18rpx;
+}
+
+.subject-value {
+  color: var(--text-primary);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.subject-tip {
+  color: var(--text-secondary);
+  font-size: 24rpx;
+}
+
+.material-input {
+  width: 100%;
+  min-height: 360rpx;
+  padding: 18rpx;
+  border: 2rpx solid var(--border-color);
+  border-radius: 14rpx;
+  box-sizing: border-box;
+  color: var(--text-primary);
+  font-size: 28rpx;
+  line-height: 42rpx;
+}
+
+.placeholder {
+  color: #98a2b3;
+}
+
+.counter {
+  text-align: right;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: var(--text-secondary);
+}
+
+.style-group {
+  display: flex;
+  gap: 24rpx;
+}
+
+.style-item {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+}
+
+.style-label {
+  color: var(--text-primary);
+  font-size: 28rpx;
+}
+
+.actions {
+  margin-top: 34rpx;
+  display: flex;
+  gap: 20rpx;
+}
+
+.btn {
+  flex: 1;
+  border-radius: 14rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border: none;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn-primary {
+  background: var(--brand-color);
+  color: #ffffff;
+}
+
+.btn-primary:active {
+  background: var(--brand-color-dark);
+}
+
+.btn-secondary {
+  background: #e9efff;
+  color: var(--brand-color);
+}
+
+.hint {
+  margin-top: 24rpx;
+  color: var(--text-secondary);
+  font-size: 24rpx;
+  line-height: 36rpx;
+}

@@ -1,0 +1,10 @@
+{
+  "runtime": "Nodejs16.13",
+  "timeout": 600,
+  "memorySize": 1024,
+  "permissions": {
+    "openapi": [
+      "wxacode.get"
+    ]
+  }
+}

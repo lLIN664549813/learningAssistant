@@ -1,0 +1,23 @@
+{
+  "name": "quickstartFunctions",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "cloudfunction-config": {
+    "runtime": "Nodejs16.13",
+    "timeout": 600,
+    "memorySize": 1024
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^3.18.0",
+    "wx-server-sdk": "~2.4.0"
+  }
+}

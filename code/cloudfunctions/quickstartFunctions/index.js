@@ -1,0 +1,746 @@
+/*
+ * @Description: '学习建议云函数（学科路由 + 语文AI生成）'
+ * @Version: 1.0
+ * @Autor:'zhanglin'
+ * @Date: 2026-02-26 11:46:00
+ * @LastEditors: 'zhanglin'
+ * @LastEditTime: 2026-02-27 11:36:00
+ */
+
+const cloud = require('wx-server-sdk');
+
+cloud.init({
+  env: cloud.DYNAMIC_CURRENT_ENV,
+});
+
+function parseTimeout(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1000) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+const AI_ENV_ID = process.env.TCB_ENV || 'cloud1-1g2nu0dnc866c9b3';
+const AI_MODEL_PROVIDER = 'hunyuan-exp';
+const AI_MODEL_NAME = 'hunyuan-turbos-latest';
+const FUNCTION_BUILD_ID = '2026-02-27-ai-stable-4';
+const AI_TIMEOUT_MS = parseTimeout(process.env.AI_TIMEOUT_MS, 540000);
+const CLOUDBASE_TIMEOUT_MS = parseTimeout(process.env.CLOUDBASE_TIMEOUT_MS, 520000);
+const AI_DEBUG_PREVIEW_MAX = 600;
+const RUNTIME_NODE_VERSION = (process.versions && process.versions.node) || '';
+const RUNTIME_NODE_MAJOR = Number((RUNTIME_NODE_VERSION.split('.')[0] || '0'));
+const IS_LEGACY_NODE_RUNTIME = RUNTIME_NODE_MAJOR > 0 && RUNTIME_NODE_MAJOR < 12;
+
+function readFunctionTimeLimitMs(context) {
+  if (!context || typeof context !== 'object') {
+    return 0;
+  }
+
+  const candidates = [
+    context.time_limit_in_ms,
+    context.timeLimitInMs,
+    context.timeLimitIns,
+  ];
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const value = Number(candidates[index]);
+    if (Number.isFinite(value) && value > 0) {
+      return Math.floor(value);
+    }
+  }
+
+  return 0;
+}
+
+const MAX_MATERIAL_LENGTH = 3000;
+const AI_REQUEST_MATERIAL_MAX_LENGTH = 1600;
+const AI_RETRY_MATERIAL_MAX_LENGTH = 900;
+const FUNCTION_TIMEOUT_HEADROOM_MS = 10000;
+const RETRY_MIN_REMAINING_MS = 5500;
+const MIN_MATERIAL_LENGTH = 60;
+
+const buildAttemptTimeout = (runtimeTimeLimitMs, callStartAt) => {
+  const elapsedMs = Date.now() - callStartAt;
+  if (!Number.isFinite(runtimeTimeLimitMs) || runtimeTimeLimitMs <= 0) {
+    return AI_TIMEOUT_MS;
+  }
+
+  const remainingMs = runtimeTimeLimitMs - elapsedMs - FUNCTION_TIMEOUT_HEADROOM_MS;
+  const safeRemainingMs = Math.max(1500, remainingMs);
+  return Math.max(1500, Math.min(AI_TIMEOUT_MS, safeRemainingMs));
+};
+
+const SUBJECT_CONFIG = {
+  chinese: { label: '语文', enabled: true },
+  math: { label: '数学', enabled: false },
+  english: { label: '英语', enabled: false },
+  physics: { label: '物理', enabled: false },
+  chemistry: { label: '化学', enabled: false },
+  biology: { label: '生物', enabled: false },
+  politics: { label: '政治', enabled: false },
+  history: { label: '历史', enabled: false },
+  geography: { label: '地理', enabled: false },
+};
+
+const normalizeStyle = (style) => (style === 'narrative' ? 'narrative' : 'argumentative');
+const normalizeSubject = (subject) => {
+  const value = (subject || 'chinese').toLowerCase().trim();
+  return SUBJECT_CONFIG[value] ? value : 'chinese';
+};
+
+const splitSentences = (text) =>
+  text
+    .replace(/\r/g, '')
+    .split(/[。！？!?；;\n]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 6);
+
+const ensureStringArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => `${item || ''}`.trim())
+      .filter((item) => item)
+      .slice(0, 8);
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/[；;。\n、|]/)
+      .map((item) => item.trim())
+      .filter((item) => item)
+      .slice(0, 8);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value)
+      .map((item) => `${item || ''}`.trim())
+      .filter((item) => item)
+      .slice(0, 8);
+  }
+
+  return fallback;
+};
+
+const withTimeout = (promise, timeoutMs, timeoutMessage) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    }),
+  ]);
+
+const extractErrorMessage = (error) => {
+  const rawMessage =
+    (error && error.message) ||
+    (error && error.errMsg) ||
+    (error && error.error) ||
+    (typeof error === 'string' ? error : '未知错误');
+
+  return `${rawMessage}`.replace(/\s+/g, ' ').trim().slice(0, 180);
+};
+
+const buildRawPreview = (text) => `${text || ''}`.slice(0, AI_DEBUG_PREVIEW_MAX);
+
+const pickMaterialPoints = (sentences) => {
+  const points = [];
+  for (let index = 0; index < sentences.length; index += 1) {
+    if (points.length >= 5) {
+      break;
+    }
+    const point = sentences[index]
+      .replace(/[“”"'《》]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (point) {
+      points.push(point);
+    }
+  }
+  if (points.length === 0 && sentences[0]) {
+    points.push(sentences[0].slice(0, 28));
+  }
+  return points;
+};
+
+const inferTheme = (materialPoints) => {
+  const firstPoint = materialPoints[0] || '材料核心主题';
+  return firstPoint.slice(0, 12);
+};
+
+const buildChineseAngles = (style, theme) => {
+  if (style === 'narrative') {
+    return [
+      {
+        title: '在抉择中完成成长',
+        one_sentence: `围绕“${theme}”设置成长冲突，展现由困惑到笃定的转变。`,
+        why_fit: ['材料存在价值冲突或选择压力，适合写“变化”与“领悟”', '便于通过事件推进人物成长轨迹'],
+        pitfalls: ['只叙事不点题，缺少价值提炼', '情节堆砌但细节与心理描写不足'],
+      },
+      {
+        title: '在平凡场景中见精神',
+        one_sentence: `从日常情境切入“${theme}”，以小见大呈现核心品质。`,
+        why_fit: ['便于家长指导孩子快速找到可写生活素材', '能把抽象材料落到具体人物与事件'],
+        pitfalls: ['故事完整但主旨不聚焦', '结尾未回扣材料关键词'],
+      },
+      {
+        title: '以一次关键经历回应材料',
+        one_sentence: `选取一段关键经历，前后对比回应“${theme}”的现实意义。`,
+        why_fit: ['结构清晰，容易形成“开端-发展-转折-收束”', '适合考场限时写作快速起稿'],
+        pitfalls: ['转折生硬，缺少铺垫', '抒情空泛，缺少行动与细节支撑'],
+      },
+    ];
+  }
+
+  return [
+    {
+      title: '平衡速度与稳健',
+      one_sentence: `围绕“${theme}”论证快与稳的辩证统一，强调审时度势。`,
+      why_fit: ['材料常含两种看似对立的立场，适合辩证分析', '便于拆分分论点并形成层次化论证'],
+      pitfalls: ['只做态度表态，缺少论证过程', '观点面面俱到导致中心论点不突出'],
+    },
+    {
+      title: '以长期主义回应当下焦虑',
+      one_sentence: `从“${theme}”切入，论证长期目标与当下行动的一致性。`,
+      why_fit: ['与高中生成长情境贴近，现实感较强', '便于引用学习、社会、个体发展等多维例证'],
+      pitfalls: ['例子堆砌，缺少分析与回扣', '分论点重复，逻辑递进不明显'],
+    },
+    {
+      title: '在约束中实现有效突破',
+      one_sentence: `论证面对现实边界时，如何通过方法与心态完成“${theme}”的价值实现。`,
+      why_fit: ['能兼顾理想与现实，避免单向度论述', '可形成“现象-原因-路径”结构'],
+      pitfalls: ['问题分析停留在口号层面', '结尾没有形成价值升华'],
+    },
+  ];
+};
+
+const buildChineseOutline = (style, materialPoints, angle) => {
+  const firstPoint = materialPoints[0] || '结合材料关键词';
+  const secondPoint = materialPoints[1] || firstPoint;
+
+  if (style === 'narrative') {
+    return {
+      style: 'narrative',
+      paragraphs: [
+        {
+          name: '开端：情境引入',
+          what_to_write: ['点出人物、时间与冲突情境', '用 1-2 句自然带出材料关键词'],
+          material_hook: firstPoint,
+        },
+        {
+          name: '发展：矛盾推进',
+          what_to_write: ['通过行动与对话推进事件', '突出“我”在选择中的犹豫与思考'],
+          material_hook: secondPoint,
+        },
+        {
+          name: '转折：关键触发',
+          what_to_write: ['设置触发点（人物一句话/一次失败/一次提醒）', '让主题从“知道”走向“做到”'],
+          material_hook: firstPoint,
+        },
+        {
+          name: '高潮：变化发生',
+          what_to_write: ['呈现主人公做出关键决定后的行动', '细节描写支撑情感与价值变化'],
+          material_hook: secondPoint,
+        },
+        {
+          name: '收束：回扣与升华',
+          what_to_write: ['回扣材料，明确主题感悟', '将个体体验提升到普遍意义'],
+          material_hook: angle.one_sentence,
+        },
+      ],
+    };
+  }
+
+  return {
+    style: 'argumentative',
+    paragraphs: [
+      {
+        name: '第一段：引材料并立中心论点',
+        what_to_write: ['简述材料矛盾点或核心命题', '提出明确中心论点（一句话可判定）'],
+        material_hook: firstPoint,
+      },
+      {
+        name: '第二段：分论点一（是什么）',
+        what_to_write: ['解释概念边界，避免空泛', '用一个贴近学生场景的例证说明'],
+        material_hook: secondPoint,
+      },
+      {
+        name: '第三段：分论点二（为什么）',
+        what_to_write: ['分析背后原因或价值逻辑', '补充社会或历史维度的例证'],
+        material_hook: firstPoint,
+      },
+      {
+        name: '第四段：分论点三（怎么做）',
+        what_to_write: ['给出可执行路径与方法', '回应常见反例或质疑，体现思辨性'],
+        material_hook: secondPoint,
+      },
+      {
+        name: '第五段：结尾回扣材料并升华',
+        what_to_write: ['重申中心论点并回扣材料关键词', '收束到青年成长或时代命题'],
+        material_hook: angle.one_sentence,
+      },
+    ],
+  };
+};
+
+const buildChineseScoreChecklist = (style) => {
+  const commonList = [
+    {
+      dimension: '扣题与立意',
+      items: ['开头 3 句内出现材料关键词', '中心观点表达明确，不含糊', '结尾再次回扣材料与中心论点'],
+    },
+    {
+      dimension: '结构完整性',
+      items: ['段落分工清晰，不重复', '段与段之间有逻辑衔接', '全文首尾呼应，结构闭环'],
+    },
+    {
+      dimension: '语言表达',
+      items: ['关键句简洁有力，避免口语化', '尽量减少空洞套话与重复表述', '有 1-2 处点题金句提升质感'],
+    },
+  ];
+
+  if (style === 'narrative') {
+    return [
+      ...commonList,
+      {
+        dimension: '叙事与细节',
+        items: ['至少 2 处动作/神态/心理细节', '转折有铺垫，不突兀', '人物变化前后有对照'],
+      },
+    ];
+  }
+
+  return [
+    ...commonList,
+    {
+      dimension: '论证质量',
+      items: ['每个分论点都有例证或分析支撑', '例证后有“所以”式分析回扣', '有一处反向思考体现思辨深度'],
+    },
+  ];
+};
+
+const buildChineseFallbackResult = (style, parsedText, safetyNotes, modelFailureReason = '', debugInfo = null) => {
+  const sentences = splitSentences(parsedText);
+  const materialPoints = pickMaterialPoints(sentences);
+  const theme = inferTheme(materialPoints);
+  const angles = buildChineseAngles(style, theme);
+  const outline = buildChineseOutline(style, materialPoints, angles[0]);
+  const scoreChecklist = buildChineseScoreChecklist(style);
+
+  if (materialPoints.length < 3) {
+    safetyNotes.push('材料有效信息较少，建议补充题干中的限定条件再生成。');
+  }
+
+  return {
+    schemaVersion: '1.2.0',
+    meta: {
+      subject: 'chinese',
+      subjectLabel: SUBJECT_CONFIG.chinese.label,
+      style,
+      source: 'fallback-rules',
+      modelFailureReason,
+      debug: debugInfo,
+    },
+    material_points: materialPoints,
+    angles,
+    outline,
+    score_checklist: scoreChecklist,
+    safety_notes: safetyNotes,
+  };
+};
+
+const stripCodeBlock = (content) => {
+  const raw = `${content || ''}`.trim();
+  if (!raw.startsWith('```')) {
+    return raw;
+  }
+  return raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/, '')
+    .trim();
+};
+
+const normalizeJsonCandidate = (content) => {
+  let normalized = `${content || ''}`.trim();
+
+  if (!normalized) {
+    return normalized;
+  }
+
+  if (!normalized.startsWith('{') && !normalized.startsWith('[')) {
+    if (normalized.startsWith('"material_points"') || normalized.startsWith("'material_points'")) {
+      normalized = `{${normalized}}`;
+    }
+  }
+
+  normalized = normalized.replace(/,\s*([}\]])/g, '$1');
+  return normalized;
+};
+
+const parseModelJson = (content) => {
+  const normalized = normalizeJsonCandidate(stripCodeBlock(content));
+  try {
+    return JSON.parse(normalized);
+  } catch (error) {
+    const startIndex = normalized.indexOf('{');
+    const endIndex = normalized.lastIndexOf('}');
+    if (startIndex >= 0 && endIndex > startIndex) {
+      return JSON.parse(normalizeJsonCandidate(normalized.slice(startIndex, endIndex + 1)));
+    }
+    throw error;
+  }
+};
+
+const normalizeModelResult = (payload, style) => {
+  const safePayload = payload && typeof payload === 'object' ? payload : {};
+  const materialPoints = ensureStringArray(safePayload.material_points);
+  const angles = Array.isArray(safePayload.angles)
+    ? safePayload.angles
+        .map((item) => ({
+          title: `${(item && item.title) || ''}`.trim(),
+          one_sentence: `${(item && item.one_sentence) || ''}`.trim(),
+          why_fit: ensureStringArray(item && item.why_fit),
+          pitfalls: ensureStringArray(item && item.pitfalls),
+        }))
+        .filter((item) => item.title && item.one_sentence)
+        .slice(0, 3)
+    : [];
+
+  const outlineSource = safePayload.outline && Array.isArray(safePayload.outline.paragraphs)
+    ? safePayload.outline.paragraphs
+    : [];
+  const outlineParagraphs = outlineSource.length > 0
+    ? outlineSource
+        .map((item) => ({
+          name: `${(item && item.name) || ''}`.trim(),
+          what_to_write: ensureStringArray(item && item.what_to_write),
+          material_hook: `${(item && item.material_hook) || ''}`.trim(),
+        }))
+        .filter((item) => item.name && item.what_to_write.length > 0)
+    : [];
+
+  const scoreChecklist = Array.isArray(safePayload.score_checklist)
+    ? safePayload.score_checklist
+        .map((item) => ({
+          dimension: `${(item && item.dimension) || ''}`.trim(),
+          items: ensureStringArray(item && item.items),
+        }))
+        .filter((item) => item.dimension && item.items.length > 0)
+    : [];
+
+  const safetyNotes = ensureStringArray(safePayload.safety_notes);
+
+  if (materialPoints.length < 2 || angles.length === 0 || outlineParagraphs.length === 0 || scoreChecklist.length === 0) {
+    throw new Error('AI 返回结构不完整');
+  }
+
+  return {
+    schemaVersion: '1.2.0',
+    meta: {
+      subject: 'chinese',
+      subjectLabel: SUBJECT_CONFIG.chinese.label,
+      style,
+      source: 'hunyuan-exp',
+      model: AI_MODEL_NAME,
+    },
+    material_points: materialPoints,
+    angles,
+    outline: {
+      style,
+      paragraphs: outlineParagraphs,
+    },
+    score_checklist: scoreChecklist,
+    safety_notes: safetyNotes,
+  };
+};
+
+let cloudbaseSdk = null;
+let aiModelInstance;
+
+const getCloudbaseSdk = () => {
+  if (cloudbaseSdk) {
+    return cloudbaseSdk;
+  }
+  try {
+    cloudbaseSdk = require('@cloudbase/node-sdk');
+    return cloudbaseSdk;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getAiModel = () => {
+  if (aiModelInstance !== undefined) {
+    return aiModelInstance;
+  }
+
+  const sdk = getCloudbaseSdk();
+  if (!sdk) {
+    aiModelInstance = null;
+    return aiModelInstance;
+  }
+
+  try {
+    const app = sdk.init({
+      env: AI_ENV_ID,
+      timeout: CLOUDBASE_TIMEOUT_MS,
+    });
+    if (app && typeof app.ai === 'function') {
+      aiModelInstance = app.ai().createModel(AI_MODEL_PROVIDER);
+      return aiModelInstance;
+    }
+    aiModelInstance = null;
+    return aiModelInstance;
+  } catch (error) {
+    aiModelInstance = null;
+    return aiModelInstance;
+  }
+};
+
+const createModelMessages = (materialText, style) => {
+  const styleText = style === 'narrative' ? '记叙文' : '议论文';
+  const systemPrompt = [
+    '你是高中语文作文教学助手。',
+    '你只输出一个 JSON 对象，不要输出 markdown、解释、注释或额外文本。',
+    '输出必须以 { 开头，以 } 结尾。',
+    'JSON 必须包含字段：material_points, angles, outline, score_checklist, safety_notes。',
+    'angles 为 2-3 个对象，每个对象含 title, one_sentence, why_fit, pitfalls。',
+    'why_fit 与 pitfalls 必须是字符串数组，不允许是字符串。',
+    'outline.paragraphs 为 5 段，每段含 name, what_to_write, material_hook。',
+    'score_checklist 为 3-4 组，每组含 dimension, items。',
+    'material_points、what_to_write、items、safety_notes 必须是字符串数组。',
+    '语言务必简洁可执行，贴合高中语文考场写作。',
+  ].join('');
+
+  const userPrompt = [`文体：${styleText}`, '请基于以下材料生成写前提分建议：', materialText].join('\n');
+
+  return [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
+};
+
+const callModelStreamText = async (messages, timeoutMs = AI_TIMEOUT_MS) => {
+  const model = getAiModel();
+  if (!model) {
+    throw new Error('AI 模型初始化失败');
+  }
+
+  const requestTask = async () => {
+    if (typeof model.generateText !== 'function') {
+      throw new Error('当前模型实例不支持 generateText');
+    }
+
+    const response = await model.generateText({
+      model: AI_MODEL_NAME,
+      messages,
+    }, {
+      timeout: timeoutMs,
+    });
+
+    const text = `${(response && response.text) || ''}`.trim();
+    if (!text) {
+      throw new Error('模型返回为空');
+    }
+
+    return {
+      text,
+      streamType: 'generateText',
+      chunkCount: 1,
+    };
+  };
+
+  return withTimeout(requestTask(), timeoutMs, '模型调用超时');
+};
+
+const generateChineseOutline = async (event) => {
+  const style = normalizeStyle(event.style);
+  const materialText = (event.materialText || '').trim();
+  const debugEnabled = (event && event.debugAI === true) || `${process.env.DEBUG_AI || ''}` === '1';
+
+  if (!materialText || materialText.length < MIN_MATERIAL_LENGTH) {
+    return {
+      ok: false,
+      errorCode: 'INVALID_INPUT',
+      message: `请输入不少于 ${MIN_MATERIAL_LENGTH} 字的题目材料`,
+    };
+  }
+
+  let parsedText = materialText;
+  const safetyNotes = ['本结果为 AI 辅助建议，请结合课堂要求进一步调整。'];
+  if (parsedText.length > MAX_MATERIAL_LENGTH) {
+    parsedText = parsedText.slice(0, MAX_MATERIAL_LENGTH);
+    safetyNotes.push(`材料超过 ${MAX_MATERIAL_LENGTH} 字，系统仅基于前 ${MAX_MATERIAL_LENGTH} 字分析。`);
+  }
+
+  let aiMaterialText = parsedText;
+  if (aiMaterialText.length > AI_REQUEST_MATERIAL_MAX_LENGTH) {
+    aiMaterialText = aiMaterialText.slice(0, AI_REQUEST_MATERIAL_MAX_LENGTH);
+    safetyNotes.push(`为提升稳定性，AI 调用仅使用前 ${AI_REQUEST_MATERIAL_MAX_LENGTH} 字进行分析。`);
+  }
+
+  if (IS_LEGACY_NODE_RUNTIME) {
+    return {
+      ok: false,
+      errorCode: 'RUNTIME_NOT_SUPPORTED',
+      message: `当前云函数运行时 Node ${RUNTIME_NODE_VERSION || 'unknown'} 不支持 AI 调用，请在云函数配置中切换到 Node16 后重新部署。`,
+    };
+  }
+
+  try {
+    const startAt = Date.now();
+    const runtimeTimeLimitMs = Number((event && event._runtimeTimeLimitMs) || 0);
+    let modelResponse = null;
+
+    try {
+      const firstAttemptTimeout = buildAttemptTimeout(runtimeTimeLimitMs, startAt);
+      const messages = createModelMessages(aiMaterialText, style);
+      modelResponse = await callModelStreamText(messages, firstAttemptTimeout);
+    } catch (error) {
+      const errorMessage = extractErrorMessage(error);
+      const secondAttemptTimeout = buildAttemptTimeout(runtimeTimeLimitMs, startAt);
+      const shouldRetry =
+        errorMessage.includes('模型调用超时') &&
+        aiMaterialText.length > AI_RETRY_MATERIAL_MAX_LENGTH &&
+        secondAttemptTimeout >= RETRY_MIN_REMAINING_MS;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const retryMaterialText = aiMaterialText.slice(0, AI_RETRY_MATERIAL_MAX_LENGTH);
+      safetyNotes.push(`首次 AI 调用超时，已自动缩短材料至 ${AI_RETRY_MATERIAL_MAX_LENGTH} 字重试。`);
+      const retryMessages = createModelMessages(retryMaterialText, style);
+      modelResponse = await callModelStreamText(retryMessages, secondAttemptTimeout);
+    }
+
+    const modelText = modelResponse.text;
+
+    const debugInfo = {
+      streamType: modelResponse.streamType,
+      chunkCount: modelResponse.chunkCount,
+      rawLength: modelText.length,
+      elapsedMs: Date.now() - startAt,
+      rawPreview: buildRawPreview(modelText),
+      requestMaterialLength: aiMaterialText.length,
+      runtimeTimeLimitMs,
+    };
+
+    if (debugEnabled) {
+      console.log('[AI_DEBUG] streamType=', debugInfo.streamType, 'chunkCount=', debugInfo.chunkCount, 'rawLength=', debugInfo.rawLength, 'elapsedMs=', debugInfo.elapsedMs);
+      console.log('[AI_DEBUG] rawPreview=', debugInfo.rawPreview);
+    }
+
+    const parsedModelResult = parseModelJson(modelText);
+    const result = normalizeModelResult(parsedModelResult, style);
+    if (debugEnabled) {
+      result.meta.debug = debugInfo;
+    }
+    result.safety_notes = (result.safety_notes || []).concat(safetyNotes);
+
+    return {
+      ok: true,
+      generationId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      result,
+    };
+  } catch (error) {
+    const modelFailureReason = extractErrorMessage(error);
+    const exposeFailureReason = debugEnabled || (event && event.exposeFailureReason === true);
+    const safeFailureReason = exposeFailureReason ? modelFailureReason : '';
+    const debugInfo = debugEnabled
+      ? {
+          error: modelFailureReason,
+        }
+      : null;
+    const fallbackNotes = safetyNotes.concat(
+      exposeFailureReason
+        ? [`模型调用失败原因：${modelFailureReason}`, '模型暂不可用，已自动切换为规则生成结果。']
+        : ['模型暂不可用，已自动切换为规则生成结果。']
+    );
+    if (debugEnabled) {
+      console.log('[AI_DEBUG] fallback reason=', modelFailureReason);
+    }
+    const fallbackResult = buildChineseFallbackResult(style, parsedText, fallbackNotes, safeFailureReason, debugInfo);
+    return {
+      ok: true,
+      generationId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      result: fallbackResult,
+    };
+  }
+};
+
+const SUBJECT_HANDLERS = {
+  chinese: generateChineseOutline,
+};
+
+const generateOutline = async (event) => {
+  const subject = normalizeSubject(event.subject);
+  const subjectMeta = SUBJECT_CONFIG[subject];
+  if (!(subjectMeta && subjectMeta.enabled)) {
+    return {
+      ok: false,
+      errorCode: 'SUBJECT_NOT_READY',
+      message: `${(subjectMeta && subjectMeta.label) || '该学科'}正在开发中，当前仅支持语文。`,
+    };
+  }
+
+  const handler = SUBJECT_HANDLERS[subject];
+  if (!handler) {
+    return {
+      ok: false,
+      errorCode: 'SUBJECT_HANDLER_MISSING',
+      message: '学科处理器未实现。',
+    };
+  }
+
+  const normalizedEvent = Object.assign({}, event, {
+    subject,
+  });
+
+  return handler(normalizedEvent);
+};
+
+exports.main = async (event, context) => {
+  try {
+    const contextTimeLimitMs = readFunctionTimeLimitMs(context);
+    if (event && event.type === 'generateOutline') {
+      const timeLimitMs = contextTimeLimitMs;
+      if (timeLimitMs > 0 && timeLimitMs <= 4000) {
+        return {
+          ok: false,
+          errorCode: 'FUNCTION_TIMEOUT_TOO_SHORT',
+          message: `当前云函数执行超时仅 ${Math.round(timeLimitMs / 1000)} 秒，AI 调用无法完成。请在云函数配置中将 timeout 调整到 20 秒以上并重新部署。`,
+        };
+      }
+    }
+
+    switch (event.type) {
+      case 'healthcheck':
+        return {
+          ok: true,
+          buildId: FUNCTION_BUILD_ID,
+          runtimeNode: RUNTIME_NODE_VERSION,
+          timeLimitMs: readFunctionTimeLimitMs(context),
+          aiProvider: AI_MODEL_PROVIDER,
+          aiModel: AI_MODEL_NAME,
+          aiTimeoutMs: AI_TIMEOUT_MS,
+        };
+      case 'generateOutline':
+        return generateOutline(
+          Object.assign({}, event, {
+            _runtimeTimeLimitMs: contextTimeLimitMs,
+          })
+        );
+      default:
+        return {
+          ok: false,
+          errorCode: 'UNKNOWN_TYPE',
+          message: '不支持的调用类型',
+        };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      errorCode: 'FUNCTION_RUNTIME_ERROR',
+      message: extractErrorMessage(error),
+    };
+  }
+};

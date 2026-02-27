@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "高中全学科学习助手",
+  "usingComponents": {
+    "cloud-tip-modal": "/components/cloudTipModal/index"
+  }
+}
