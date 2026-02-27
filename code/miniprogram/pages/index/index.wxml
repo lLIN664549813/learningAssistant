@@ -5,47 +5,84 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-26 13:41:34
+ * @LastEditTime: 2026-02-27 16:40:00
  */
 -->
 
 <view class="page">
+  <view class="hero-card">
+    <view class="hero-title">高中全学科学习助手</view>
+    <view class="hero-subtitle">语文模块已完整开放，其他学科能力持续扩展中</view>
+    <view class="hero-tags">
+      <view class="hero-tag">结构化输出</view>
+      <view class="hero-tag">考场场景</view>
+      <view class="hero-tag">AI 辅助建议</view>
+    </view>
+  </view>
+
   <view class="panel">
-    <view class="title">高中全学科学习助手</view>
-    <view class="subtitle">当前开放语文作文，已预留全学科扩展架构</view>
+    <view class="form-card">
+      <view class="section-title">学科</view>
+      <picker bindchange="onSubjectChange" range="{{subjectOptions}}" range-key="label">
+        <view class="selector">
+          <text class="selector-value">{{subjectLabel}}</text>
+          <text class="selector-tip">点击切换（其他学科即将上线）</text>
+        </view>
+      </picker>
+    </view>
 
-    <view class="section-title">学科</view>
-    <picker bindchange="onSubjectChange" range="{{subjectOptions}}" range-key="label">
-      <view class="subject-picker">
-        <text class="subject-value">{{subjectLabel}}</text>
-        <text class="subject-tip">点击切换（其他学科即将上线）</text>
+    <view class="form-card">
+      <view class="section-title">语文能力模块</view>
+      <picker bindchange="onFeatureChange" range="{{featureOptions}}" range-key="label">
+        <view class="selector">
+          <text class="selector-value">{{featureLabel}}</text>
+          <text class="selector-tip">点击切换模块</text>
+        </view>
+      </picker>
+    </view>
+
+    <view wx:if="{{showStyleSelector}}" class="form-card">
+      <view class="section-title">作文文体（语文）</view>
+      <view class="style-grid">
+        <view
+          wx:for="{{styleOptions}}"
+          wx:key="value"
+          class="style-chip {{item.value === style ? 'style-chip-active' : ''}}"
+          data-value="{{item.value}}"
+          bindtap="onStyleTap"
+        >
+          <view class="style-chip-dot"></view>
+          <text class="style-chip-label">{{item.label}}</text>
+        </view>
       </view>
-    </picker>
+    </view>
 
-    <view class="section-title">题目材料</view>
-    <textarea
-      class="material-input"
-      value="{{materialText}}"
-      maxlength="{{maxLength}}"
-      bindinput="onMaterialInput"
-      placeholder="请粘贴题目或材料（建议 60 字以上）"
-      placeholder-class="placeholder"
-    />
-    <view class="counter">{{materialText.length}} / {{maxLength}}</view>
-
-    <view class="section-title">作文文体（语文）</view>
-    <radio-group class="style-group" bindchange="onStyleChange">
-      <label wx:for="{{styleOptions}}" wx:key="value" class="style-item">
-        <radio value="{{item.value}}" checked="{{item.value === style}}" color="#1F6FEB" />
-        <text class="style-label">{{item.label}}</text>
-      </label>
-    </radio-group>
+    <view class="form-card">
+      <view class="section-title">题目材料</view>
+      <textarea
+        class="material-input"
+        value="{{materialText}}"
+        maxlength="{{maxLength}}"
+        bindinput="onMaterialInput"
+        placeholder="{{inputPlaceholder}}"
+        placeholder-class="placeholder"
+      />
+      <view class="counter">{{materialText.length}} / {{maxLength}}</view>
+    </view>
 
     <view class="actions">
       <button class="btn btn-secondary" bindtap="fillDemoMaterial">填入示例材料</button>
       <button class="btn btn-primary" loading="{{isGenerating}}" bindtap="onGenerate">生成建议</button>
     </view>
 
-    <view class="hint">当前输出：材料要点、立意候选、结构化提纲、提分点清单</view>
+    <view class="hint-card">
+      <view class="hint-label">当前输出</view>
+      <view class="hint-text">{{hintText}}</view>
+    </view>
+
+    <view wx:if="{{adSlotEnabled}}" class="ad-slot-card">
+      <ad wx:if="{{adUnitId}}" unit-id="{{adUnitId}}" ad-type="banner" ad-theme="white" />
+      <view wx:else class="ad-slot-placeholder"></view>
+    </view>
   </view>
 </view>

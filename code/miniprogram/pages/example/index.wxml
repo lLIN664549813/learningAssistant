@@ -1,11 +1,11 @@
 <!--
 /*
- * @Description: '结果页结构（显示学科与结构化输出）'
+ * @Description: '结果页结构（语文模块通用渲染）'
  * @Version: 1.0
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-26 13:41:34
+ * @LastEditTime: 2026-02-27 16:28:00
  */
 -->
 
@@ -19,58 +19,31 @@
   <view wx:else>
     <view class="header-card">
       <view class="header-title">学习建议结果</view>
-      <view class="header-meta">学科：{{subjectLabel}} · 文体：{{styleLabel}} · 生成时间：{{generatedAtText}}</view>
+      <view class="header-meta">学科：{{subjectLabel}} · 模块：{{featureLabel}} · 文体：{{styleLabel}} · 生成时间：{{generatedAtText}}</view>
       <view class="header-actions">
         <button class="btn-secondary" bindtap="onRegenerate">重新生成</button>
         <button class="btn-primary" bindtap="onCopyResult">复制结果</button>
       </view>
     </view>
 
-    <view class="section-card">
-      <view class="section-title">材料要点</view>
-      <view class="list-item" wx:for="{{resultData.material_points}}" wx:key="index">
-        {{index + 1}}. {{item}}
-      </view>
+    <view wx:if="{{adSlotEnabled}}" class="ad-slot-card">
+      <ad wx:if="{{adUnitId}}" unit-id="{{adUnitId}}" ad-type="banner" ad-theme="white" />
+      <view wx:else class="ad-slot-placeholder"></view>
     </view>
 
-    <view class="section-card">
-      <view class="section-title">立意候选</view>
-      <view
-        class="angle-item {{selectedAngleIndex === index ? 'angle-item-active' : ''}}"
-        wx:for="{{resultData.angles}}"
-        wx:key="index"
-        data-index="{{index}}"
-        bindtap="onSelectAngle"
-      >
-        <view class="angle-title">{{item.title}}</view>
-        <view class="angle-text">{{item.one_sentence}}</view>
-      </view>
-      <view wx:if="{{selectedAngle}}" class="angle-detail">
-        <view class="angle-detail-title">匹配理由</view>
-        <view class="angle-detail-item" wx:for="{{selectedAngle.why_fit}}" wx:key="index">
-          {{index + 1}}. {{item}}
-        </view>
-        <view class="angle-detail-title">跑题风险点</view>
-        <view class="angle-detail-item" wx:for="{{selectedAngle.pitfalls}}" wx:key="index">
-          {{index + 1}}. {{item}}
+    <view class="section-card" wx:for="{{sections}}" wx:key="index">
+      <view class="section-title">{{item.title}}</view>
+
+      <view wx:if="{{item.viewType === 'cards'}}">
+        <view class="card-item" wx:for="{{item.entries}}" wx:for-item="entry" wx:key="index">
+          <view class="card-title">{{index + 1}}. {{entry.title}}</view>
+          <view wx:if="{{entry.desc}}" class="card-desc">{{entry.desc}}</view>
+          <view class="card-bullet" wx:for="{{entry.bullets}}" wx:for-item="bullet" wx:key="index">- {{bullet}}</view>
         </view>
       </view>
-    </view>
 
-    <view class="section-card">
-      <view class="section-title">结构化提纲</view>
-      <view class="paragraph-item" wx:for="{{resultData.outline.paragraphs}}" wx:key="index">
-        <view class="paragraph-title">{{index + 1}}. {{item.name}}</view>
-        <view class="paragraph-point" wx:for="{{item.what_to_write}}" wx:key="index">- {{item}}</view>
-        <view class="paragraph-hook">材料回扣：{{item.material_hook}}</view>
-      </view>
-    </view>
-
-    <view class="section-card">
-      <view class="section-title">提分点清单</view>
-      <view class="check-group" wx:for="{{resultData.score_checklist}}" wx:key="index">
-        <view class="check-group-title">{{item.dimension}}</view>
-        <view class="check-item" wx:for="{{item.items}}" wx:key="index">□ {{item}}</view>
+      <view wx:else>
+        <view class="list-item" wx:for="{{item.entries}}" wx:for-item="entry" wx:key="index">{{index + 1}}. {{entry.text}}</view>
       </view>
     </view>
 

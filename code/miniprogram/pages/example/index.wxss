@@ -4,7 +4,7 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-26 11:46:00
+ * @LastEditTime: 2026-02-27 16:28:00
  */
 
 page {
@@ -85,12 +85,9 @@ page {
 }
 
 .list-item,
-.angle-text,
-.angle-detail-item,
-.paragraph-point,
-.paragraph-hook,
-.check-item,
 .tip-item,
+.card-desc,
+.card-bullet,
 .empty-desc {
   color: var(--text-secondary);
   font-size: 26rpx;
@@ -98,72 +95,37 @@ page {
 }
 
 .list-item,
-.check-item,
 .tip-item {
   margin-bottom: 10rpx;
 }
 
-.angle-item {
+.card-item {
   border: 2rpx solid var(--border-color);
   border-radius: 12rpx;
   padding: 16rpx;
   margin-bottom: 12rpx;
 }
 
-.angle-item-active {
-  border-color: var(--brand-color);
-  background: var(--brand-light);
-}
-
-.angle-title {
+.card-title {
   color: var(--text-primary);
   font-size: 28rpx;
   font-weight: 600;
   margin-bottom: 8rpx;
 }
 
-.angle-detail {
-  margin-top: 14rpx;
-  background: #f8faff;
-  border-radius: 12rpx;
-  padding: 14rpx;
-}
-
-.angle-detail-title {
-  color: var(--text-primary);
-  font-size: 26rpx;
-  font-weight: 600;
-  margin-top: 12rpx;
+.card-desc {
   margin-bottom: 8rpx;
 }
 
-.angle-detail-title:first-child {
-  margin-top: 0;
+.card-bullet {
+  margin-bottom: 6rpx;
 }
 
-.paragraph-item {
-  border-top: 1rpx solid var(--border-color);
-  padding-top: 14rpx;
-  margin-top: 14rpx;
-}
-
-.paragraph-item:first-child {
-  border-top: none;
-  padding-top: 0;
-  margin-top: 0;
-}
-
-.paragraph-title,
-.check-group-title,
 .empty-title {
   color: var(--text-primary);
   font-size: 28rpx;
   font-weight: 600;
   margin-bottom: 10rpx;
-}
-
-.check-group {
-  margin-bottom: 14rpx;
 }
 
 .empty-card {
@@ -176,4 +138,19 @@ page {
 
 .empty-desc {
   margin-bottom: 22rpx;
+}
+
+.ad-slot-card {
+  background: var(--card-color);
+  border-radius: var(--radius);
+  padding: 16rpx;
+  border: 2rpx dashed var(--border-color);
+  margin-bottom: 20rpx;
+}
+
+.ad-slot-placeholder {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 24rpx;
+  min-height: 72rpx;
 }
