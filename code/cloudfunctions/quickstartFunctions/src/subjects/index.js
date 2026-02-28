@@ -4,7 +4,7 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-27 16:05:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-27 16:05:00
+ * @LastEditTime: 2026-02-28 13:50:11
  */
 
 const { generateChineseResult } = require('./chinese');
@@ -50,12 +50,20 @@ async function generateBySubject(event) {
     };
   }
 
-  return handler(
+  const response = await handler(
     Object.assign({}, event, {
       subject,
       subjectLabel: subjectMeta.label,
     })
   );
+
+  if (!(response && response.ok && response.result && response.result.meta)) {
+    return response;
+  }
+
+  response.result.meta.inputMode = 'text';
+
+  return response;
 }
 
 module.exports = {

@@ -4,11 +4,11 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-27 16:40:00
+ * @LastEditTime: 2026-02-28 13:50:11
  */
 
 const STORAGE_KEY = 'essayOutlineLatest';
-const EXPECTED_FUNCTION_BUILD = '2026-02-27-m2-chinese-expansion-1';
+const EXPECTED_FUNCTION_BUILD = '2026-02-28-remove-ocr-1';
 const PAGE_AD_SLOT = {
   enabled: true,
   unitId: '',
@@ -134,11 +134,11 @@ Page({
   },
 
   onMaterialInput(event) {
+    const nextText = event.detail.value || '';
     this.setData({
-      materialText: event.detail.value || '',
+      materialText: nextText,
     });
   },
-
   onSubjectChange(event) {
     const index = Number(event.detail.value || 0);
     const selectedSubject = SUBJECT_OPTIONS[index];
@@ -246,17 +246,19 @@ Page({
         throw new Error(`云函数超时配置仅 ${Math.round(Number(healthResult.timeLimitMs || 0) / 1000)} 秒，AI 调用会失败。请将 timeout 调整到 20 秒以上并重新部署。`);
       }
 
+      const requestPayload = {
+        type: 'generateOutline',
+        debugAI: true,
+        exposeFailureReason: true,
+        subject: this.data.subject,
+        feature: this.data.feature,
+        materialText,
+        style: this.data.showStyleSelector ? this.data.style : '',
+      };
+
       const response = await wx.cloud.callFunction({
         name: 'quickstartFunctions',
-        data: {
-          type: 'generateOutline',
-          debugAI: true,
-          exposeFailureReason: true,
-          subject: this.data.subject,
-          feature: this.data.feature,
-          materialText,
-          style: this.data.showStyleSelector ? this.data.style : '',
-        },
+        data: requestPayload,
       });
 
       const cloudResult = response && response.result;

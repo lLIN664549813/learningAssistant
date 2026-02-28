@@ -4,7 +4,7 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-27 17:08:00
+ * @LastEditTime: 2026-02-28 13:50:11
  */
 
 const cloud = require('wx-server-sdk');
@@ -17,7 +17,7 @@ cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
 });
 
-const FUNCTION_BUILD_ID = '2026-02-27-m2-chinese-expansion-1';
+const FUNCTION_BUILD_ID = '2026-02-28-remove-ocr-1';
 const MIN_AI_FUNCTION_TIMEOUT_MS = 4000;
 
 exports.main = async (event, context) => {
