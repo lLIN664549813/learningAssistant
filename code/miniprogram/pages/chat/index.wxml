@@ -1,0 +1,36 @@
+<!--
+/*
+ * @Description: '聊天页面结构：输入、消息流与发送控制'
+ * @Version: 1.0
+ * @Autor:'zhanglin'
+ * @Date: 2026-03-03 11:14:51
+ * @LastEditors: 'zhanglin'
+ * @LastEditTime: 2026-03-03 11:14:51
+ */
+-->
+
+<view class="page">
+  <view class="chat-panel">
+    <scroll-view class="message-list" scroll-y scroll-with-animation scroll-into-view="{{scrollIntoView}}">
+      <view wx:for="{{messages}}" wx:key="id" id="{{item.id}}" class="message-row {{item.role === 'user' ? 'message-row-user' : 'message-row-assistant'}}">
+        <view class="message-bubble {{item.role === 'user' ? 'message-bubble-user' : 'message-bubble-assistant'}}">{{item.text}}</view>
+      </view>
+      <view wx:if="{{isSending}}" class="loading-tip">AI 思考中...</view>
+    </scroll-view>
+
+    <view class="toolbar">
+      <textarea
+        class="input-box"
+        maxlength="{{maxInputLength}}"
+        value="{{inputText}}"
+        bindinput="onInput"
+        placeholder="请输入你的问题"
+        placeholder-class="placeholder"
+      />
+      <view class="toolbar-actions">
+        <button class="btn btn-light" bindtap="onClear" disabled="{{isSending}}">清空</button>
+        <button class="btn btn-primary" bindtap="onSend" loading="{{isSending}}" disabled="{{isSending}}">发送</button>
+      </view>
+    </view>
+  </view>
+</view>

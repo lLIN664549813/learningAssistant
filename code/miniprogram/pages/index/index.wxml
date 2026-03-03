@@ -5,7 +5,7 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-28 13:50:11
+ * @LastEditTime: 2026-03-03 11:14:51
  */
 -->
 
@@ -73,6 +73,10 @@
     <view class="actions">
       <button class="btn btn-secondary" bindtap="fillDemoMaterial">填入示例材料</button>
       <button class="btn btn-primary" loading="{{isGenerating}}" bindtap="onGenerate">生成建议</button>
+    </view>
+
+    <view class="chat-entry">
+      <button class="btn btn-chat-entry" bindtap="onOpenChat">AI 聊天</button>
     </view>
 
     <view class="hint-card">

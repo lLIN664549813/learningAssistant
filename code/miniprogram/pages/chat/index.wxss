@@ -1,0 +1,140 @@
+/*
+ * @Description: '聊天页面样式：消息气泡与输入工具栏'
+ * @Version: 1.0
+ * @Autor:'zhanglin'
+ * @Date: 2026-03-03 11:14:51
+ * @LastEditors: 'zhanglin'
+ * @LastEditTime: 2026-03-03 11:14:51
+ */
+
+page {
+  --chat-bg: #eef3ff;
+  --panel-bg: #ffffff;
+  --text-primary: #131a2b;
+  --text-secondary: #5f6c86;
+  --line: #d9e4f4;
+  --user-bg: #2a6de8;
+  --assistant-bg: #f5f8ff;
+  --radius-lg: 24rpx;
+  --radius-md: 16rpx;
+  background: linear-gradient(180deg, #edf3ff 0%, #f7f8fc 100%);
+  min-height: 100vh;
+  font-family: 'Inter', 'Roboto', 'PingFang SC', sans-serif;
+}
+
+.page {
+  padding: 24rpx;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.chat-panel {
+  background: var(--panel-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12rpx 30rpx rgba(20, 34, 62, 0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.message-list {
+  flex: 1;
+  padding: 18rpx 16rpx;
+  box-sizing: border-box;
+}
+
+.message-row {
+  display: flex;
+  margin-bottom: 14rpx;
+}
+
+.message-row-user {
+  justify-content: flex-end;
+}
+
+.message-row-assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 82%;
+  border-radius: 16rpx;
+  padding: 14rpx 16rpx;
+  font-size: 27rpx;
+  line-height: 40rpx;
+  word-break: break-all;
+}
+
+.message-bubble-user {
+  background: var(--user-bg);
+  color: #ffffff;
+  border-top-right-radius: 6rpx;
+}
+
+.message-bubble-assistant {
+  background: var(--assistant-bg);
+  border: 2rpx solid #d7e4fb;
+  color: var(--text-primary);
+  border-top-left-radius: 6rpx;
+}
+
+.loading-tip {
+  color: var(--text-secondary);
+  font-size: 24rpx;
+  line-height: 34rpx;
+  padding: 8rpx 0 4rpx 6rpx;
+}
+
+.toolbar {
+  border-top: 2rpx solid var(--line);
+  padding: 14rpx;
+  background: #fbfcff;
+}
+
+.input-box {
+  width: 100%;
+  min-height: 140rpx;
+  max-height: 220rpx;
+  border: 2rpx solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 14rpx;
+  box-sizing: border-box;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 28rpx;
+  line-height: 40rpx;
+}
+
+.placeholder {
+  color: #95a3bd;
+}
+
+.toolbar-actions {
+  margin-top: 12rpx;
+  display: flex;
+  gap: 12rpx;
+}
+
+.btn {
+  flex: 1;
+  border-radius: 14rpx;
+  border: none;
+  line-height: 78rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn-light {
+  background: #edf2ff;
+  color: #3866bd;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, #1f66e1 0%, #4288ff 100%);
+  color: #ffffff;
+}

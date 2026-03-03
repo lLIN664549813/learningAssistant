@@ -4,7 +4,7 @@
  * @Autor:'zhanglin'
  * @Date: 2026-02-26 11:46:00
  * @LastEditors: 'zhanglin'
- * @LastEditTime: 2026-02-28 13:50:11
+ * @LastEditTime: 2026-03-03 11:14:51
  */
 
 const STORAGE_KEY = 'essayOutlineLatest';
@@ -197,6 +197,12 @@ Page({
     const demo = featureConfig.demoText;
     this.setData({
       materialText: demo,
+    });
+  },
+
+  onOpenChat() {
+    wx.navigateTo({
+      url: '/pages/chat/index',
     });
   },
 

@@ -1,0 +1,20 @@
+{
+  "name": "codexChat",
+  "version": "1.0.0",
+  "description": "Codex chat proxy cloud function",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests configured\""
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "cloudfunction-config": {
+    "runtime": "Nodejs16.13",
+    "timeout": 120,
+    "memorySize": 256
+  },
+  "dependencies": {
+    "wx-server-sdk": "~2.4.0"
+  }
+}
